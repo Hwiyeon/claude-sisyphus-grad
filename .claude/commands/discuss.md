@@ -6,8 +6,14 @@ Loads research logs and architecture documents into context and starts a researc
 ```
 /discuss                    # discussion based on overall research status
 /discuss <topic>            # in-depth discussion on a specific topic
+/discuss <topic> lang=en    # discussion in a specific language
 /discuss $ARGUMENTS         # free topic
 ```
+
+| argument | description | default |
+|----------|-------------|---------|
+| `topic` | discussion topic (positional) | optional |
+| `lang` | output language (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
 
 ## Procedure
 
@@ -40,6 +46,9 @@ Based on `$ARGUMENTS`, Read relevant documents from `research/topics/<topic>/` f
 - If no argument, start discussion based on overall status without additional loading
 
 ### Step 4: Start Discussion
+
+If `lang` is specified, prepend the following directive before starting:
+> **Output language**: {resolved language}. Technical terms: keep in original language.
 
 Start the discussion based on loaded context:
 

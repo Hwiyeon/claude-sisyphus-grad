@@ -133,8 +133,8 @@ The rules below are essential to prevent orchestrator context exhaustion. Follow
 - **Scribe**: perform file recording only, return only `"recorded"` to orchestrator. ※ Per-epoch recording is done directly by the orchestrator via Edit, not via scribe (scribe is called only for training completion summary and review discussion recording)
 
 ### Recording Language Rules
-- **Reviewers A–F, quick reviewer**: each may use whatever language they find most efficient (English, Korean, Japanese, etc.)
-- **Scribe**: write all records **in English**. Translate reviewer opinions submitted in other languages into English.
+- **Reviewers A–F, quick reviewer**: each may use whatever language they find most efficient
+- **Scribe**: write all records in the language specified by the `lang` argument (default: the project's default language as defined in CLAUDE.md). Translate reviewer opinions into the target language as needed.
 - Technical terms (metric names, model architecture names, etc.) may be kept in original language
 
 ### Retry Policy
