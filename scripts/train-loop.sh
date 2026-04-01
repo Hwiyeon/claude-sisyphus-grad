@@ -135,12 +135,18 @@ State 파일 경로: ${STATE_FILE}
       fi
       ;;
     initial)
-      # First iteration may leave status as initial if it failed early
-      consecutive_failures=$((consecutive_failures + 1))
-      log "WARNING: Status still 'initial' after session. Consecutive failures: $consecutive_failures/$MAX_RETRIES"
-      if [[ $consecutive_failures -ge $MAX_RETRIES ]]; then
-        log "ERROR: $MAX_RETRIES consecutive failures. Aborting."
-        exit 1
+      # Check if mid_experiment_recovery exists — orchestrator treats this as pending_resume
+      has_recovery=$(jq -r '.mid_experiment_recovery // empty' "$STATE_FILE" 2>/dev/null)
+      if [[ -n "$has_recovery" && "$has_recovery" != "null" ]]; then
+        log "Status 'initial' but mid_experiment_recovery exists — treating as pending_resume"
+        consecutive_failures=0
+      else
+        consecutive_failures=$((consecutive_failures + 1))
+        log "WARNING: Status still 'initial' after session. Consecutive failures: $consecutive_failures/$MAX_RETRIES"
+        if [[ $consecutive_failures -ge $MAX_RETRIES ]]; then
+          log "ERROR: $MAX_RETRIES consecutive failures. Aborting."
+          exit 1
+        fi
       fi
       ;;
     *)

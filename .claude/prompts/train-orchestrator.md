@@ -44,7 +44,7 @@ When `status == "pending_resume"`:
 - Process alive → reconnect stdout polling, resume monitoring from `mid_experiment_recovery.epochs_completed` (enter Step 1 polling loop).
 - Process dead → compare `mid_experiment_recovery.epochs_completed` with `epochs_total`:
   - If completed epochs are sufficient (>=50%) → collect results then enter Step 2.
-  - If insufficient → restart training from scratch (Step 1).
+  - If insufficient → resume training from latest checkpoint using `--resume_from_epoch {epochs_completed} --resume_override_config` (Step 1). This reuses the existing wandb run instead of creating a duplicate.
 
 **2. next_action handling** (when mid_experiment_recovery is null):
 - `next_action.type == "config_modify"`: apply changes specified in `next_action.config_changes[]` to config file.
