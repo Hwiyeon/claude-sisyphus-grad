@@ -5,6 +5,14 @@ Saves the discussion from the current conversation session as a structured discu
 
 ---
 
+## Arguments
+
+| argument | description | default |
+|----------|-------------|---------|
+| `lang` | output language for the saved discussion file (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
+
+---
+
 ## Main Claude's Role (minimal — return immediately)
 
 ### Step 1: Determine Topic Hint
@@ -36,6 +44,7 @@ Perform both file I/O and content synthesis.
 ## Meta Information
 
 **Today's date**: [YYYY-MM-DD]  (MMDD = [MMDD])
+**Language**: [resolved lang value, e.g. Korean / English] — write all content in this language. Technical terms may remain in original language.
 **Module**: [module_a / module_b / module_c / meta]
 **discussion path**: [discussion path for this module]
 **topic log path**: [topic log path for this module, "none" if not applicable]

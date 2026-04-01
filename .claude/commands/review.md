@@ -20,6 +20,7 @@ Can be used standalone outside the `/train` loop; performs a one-time review wit
 | `review_cycles` | number of G→round2→round3→Judge cycle repetitions | 1 |
 | `config` | config file path (passed to reviewers as reference) | optional |
 | `script` | training script path (passed to reviewers as reference) | optional |
+| `lang` | output language for review output (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
 
 ---
 

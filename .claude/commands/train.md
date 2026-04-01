@@ -28,8 +28,10 @@ Parse arguments in the format below. Use defaults for unspecified items:
 | `analyze` | before training, analyze best model performance, training reports, and research logs to derive and apply improvements. May include fundamental changes to architecture, loss, data pipeline, etc. | `false` |
 | `subset` | if `true`, first validate with 20% subset, then switch to full dataset if promising | `false` |
 | `circuit_breaker` | if the same Judge decision type occurs N times consecutively, pass pattern detection to the Judge during round 2 review to strengthen decision direction. null disables this | `null` |
+| `lang` | output language for all records, messages, and reports (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
 
 After parsing, print the parsed values once for user confirmation before starting.
+Pass the resolved `lang` value to all subagents and recording steps (Scribe, reviewers, etc.).
 
 ---
 

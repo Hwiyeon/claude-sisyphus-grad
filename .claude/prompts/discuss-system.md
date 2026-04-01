@@ -32,7 +32,8 @@ and future direction proposals.
 - Compare with past similar experiments (reference from summaries/archive)
 
 ### Language
-- Match the user's language (Korean / English / mixed)
+- If a `lang` argument is provided by the calling command, use that language for all output
+- Otherwise, match the user's language
 - Keep technical terms in their original language
 
 ### Preserve Existing Rules
