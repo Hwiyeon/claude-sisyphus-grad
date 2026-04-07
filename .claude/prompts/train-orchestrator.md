@@ -40,6 +40,7 @@ At each iteration (external wrapper creates a new session), execute the followin
    - `status == "pending_resume"` → handle next_action then next experiment (Steps 1→2→3, see resume procedure below)
    - `status == "completed"` or `status == "stopped"` → execute Step 5 then print completion promise
 6. **Check Git branch**: if `progress.current_git_branch` is non-null, checkout that branch
+7. **Enforce wandb name sync**: read config file's `wandb.name` and compare with `progress.next_wandb_run_name`. If they differ, overwrite config's `wandb.name` with the session value. Run name format is `{experiment_title}-{MMDD}-v{NN}` — the experiment_title MUST be embedded in the name. This also determines the checkpoint directory name (`{output_dir}/{wandb.name}/`)
 
 ### pending_resume Resume Procedure
 
@@ -199,7 +200,7 @@ After Step 2 review discussion, branch per Judge decision:
    - `status`: `"pending_resume"`
    - `progress.experiments_completed`: count completed so far
    - `progress.next_experiment_n`: next experiment number
-   - `progress.next_wandb_run_name`: next run name
+   - `progress.next_wandb_run_name`: next run name (format: `{experiment_title}-{MMDD}-v{NN}`, increment NN from current)
    - `progress.current_git_branch`: current git branch (new branch name for algo_modify)
    - `progress.subset_phase`: value determined in step 2 above
    - `next_action`: modification plan per review conclusion
