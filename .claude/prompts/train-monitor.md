@@ -45,6 +45,7 @@ When `parallel` is 2 or more, train **multiple models simultaneously** based on 
 
 ```
 while training process is running:
+  0. check {session_dir}/cache/stop_signal.json → if exists, enter Stop Signal Handling below
   1. stdout tail (TaskOutput block=false) → detect "[EPOCH_DONE] N/M" pattern
   2. if detected → run Per-Epoch Processing Procedure below, one epoch at a time (even if multiple accumulated)
   3. if not detected → adaptive sleep then repeat (see rules below)
@@ -179,6 +180,50 @@ After decision, the orchestrator **directly** appends to `experiment_{N}_detail.
 - Stop the training process
 - Save current results to `results/experiment_{N}_aborted.json`
 - **Enter Step 2**: conduct normal multi-agent review based on aborted results → Step 3 (GitHub sync) → end iteration
+
+---
+
+## Stop Signal Handling
+
+When `{session_dir}/cache/stop_signal.json` is detected during the polling loop, the user has requested a graceful stop from their interactive session.
+
+Read the file and branch by `mode`:
+
+### `mode=immediate`
+
+1. Kill the training process (`kill {training_pid}`)
+2. Update `session_continuation.json`: set `status` to `"stopped"`, update `written_at`
+3. **End response immediately** — do not perform any recording or review
+
+### `mode=report`
+
+1. Kill the training process (`kill {training_pid}`)
+2. Collect current metrics from `cache/metric_cache.jsonl` → save to `results/experiment_{N}_stopped.json`
+3. Call scribe to write a session report summary in `session_report.md`:
+   ```markdown
+   ---
+   ## Stopped by User (YYYY-MM-DD HH:MM:SS)
+   - Mode: report
+   - Stopped at: Experiment {N}, Epoch {completed}/{total}
+   - Last metrics: {key metrics summary}
+   ---
+   ```
+4. Update `session_continuation.json`: set `status` to `"stopped"`, update `written_at`
+5. GitHub sync
+6. **End response immediately**
+
+### `mode=review`
+
+1. Kill the training process (`kill {training_pid}`)
+2. Collect current metrics from `cache/metric_cache.jsonl` → save to `results/experiment_{N}_stopped.json`
+3. Record training stop in `experiment_{N}_detail.md`
+4. **Enter Step 2**: conduct full multi-agent review based on stopped results (same as On Abort flow)
+5. After review completes, update `session_continuation.json`: set `status` to `"stopped"`, update `written_at`
+6. GitHub sync
+7. **End response immediately**
+
+※ In all modes, after the orchestrator sets `status` to `"stopped"`, `train-loop.sh` will detect this and exit the loop automatically.
+※ Do **not** delete `stop_signal.json` — it serves as an audit trail.
 
 ---
 

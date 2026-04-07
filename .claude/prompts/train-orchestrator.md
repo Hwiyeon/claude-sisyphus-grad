@@ -26,14 +26,20 @@ At each iteration (external wrapper creates a new session), execute the followin
    - `key_hypothesis`: core hypothesis this experiment is testing
    - `failed_approaches`: list of approaches already tried with no effect (prevent duplicate attempts)
    - `critical_unknowns`: unverified items raised by previous reviewers (reference for experiment design/result interpretation)
-4. **Branch by status**:
+4. **Check stop signal**: check if `{session_dir}/cache/stop_signal.json` exists.
+   - If exists: read `mode` field. Training is not running at iteration entry (between iterations), so:
+     - `mode=immediate`: set `session_continuation.json` `status` to `"stopped"`, update `written_at`. End response immediately.
+     - `mode=report`: call scribe to write session report summary in `session_report.md` (current progress up to last completed experiment). Set `status` to `"stopped"`, update `written_at`. GitHub sync. End response immediately.
+     - `mode=review`: if there are completed experiment results, enter Step 2 (review) for the last experiment. Otherwise, treat as `report`. After review, set `status` to `"stopped"`, update `written_at`. GitHub sync. End response immediately.
+   - If not exists: continue to step 5.
+5. **Branch by status**:
    - `status == "initial"` + `mid_experiment_recovery` is non-null → **treat as `pending_resume`**: the previous session wrote recovery data but failed to update `status`. Enter `pending_resume` resume procedure (check if training process alive, reconnect or restart as appropriate).
    - `status == "initial"` + `analyze == true` → execute only Step 0 (pre-analysis) then end iteration
    - `status == "initial"` + `analyze == false` → Step 0 (init) + first experiment (Steps 0→1→2→3)
    - `status == "analyzed"` → pre-analysis complete, proceed with first experiment (Steps 1→2→3)
    - `status == "pending_resume"` → handle next_action then next experiment (Steps 1→2→3, see resume procedure below)
    - `status == "completed"` or `status == "stopped"` → execute Step 5 then print completion promise
-4. **Check Git branch**: if `progress.current_git_branch` is non-null, checkout that branch
+6. **Check Git branch**: if `progress.current_git_branch` is non-null, checkout that branch
 
 ### pending_resume Resume Procedure
 
@@ -181,6 +187,7 @@ After Step 2 review discussion, branch per Judge decision:
 1. Update `session_continuation.json`'s `status` to `"completed"` (for go) or `"stopped"` (for abort)
 2. **Execute Step 5**: final wrap-up and exit (see below)
 3. **Print completion promise**: `<promise>ALL_EXPERIMENTS_COMPLETE</promise>`
+4. **STOP**: Do not perform any further actions. End your response immediately after the promise tag.
 
 ### `config_modify` or `algo_modify`
 
@@ -234,7 +241,7 @@ When Step 2 review of subset experiment deems it **promising** (transition to fu
    ---
    ```
 4. **GitHub sync**: sync including continuation file and reports
-5. **End response**: updating `session_continuation.json` is the key. Text output is optional but a brief summary is recommended for log readability:
+5. **End response and STOP**: updating `session_continuation.json` is the key. Print a brief summary then **immediately end your response — do not perform any further actions**:
      ```
      🔄 Iteration complete — Experiment {N} {decision summary}. Next: Experiment {N+1}.
      ```
@@ -258,7 +265,7 @@ Items to record:
 - Key insights (patterns that repeatedly emerged in discussions)
 - **Code modification branch list** (if any): branch name, change summary, corresponding experiment number. Organized for post-hoc review/approval/rollback by user
 
-Push to GitHub and exit.
+Push to GitHub. After the push completes, **end your response immediately — do not perform any further actions**.
 
 ---
 
@@ -293,5 +300,6 @@ Before running Step 2 review pipeline, perform the following:
 - **Retry limit**: on Task tool call failure, retry up to 3 times then fallback (see communication principles). Do not exhaust context with infinite retries.
 - **No background agents**: do not use `run_in_background` Tasks (monitoring agents, etc.). All monitoring is done via orchestrator's inline polling loop.
 - **Iteration boundary principle**: update session_continuation.json at each experiment boundary and end the response. External wrapper (`train-loop.sh`) detects the `written_at` change and automatically starts the next iteration. Only output `<promise>ALL_EXPERIMENTS_COMPLETE</promise>` when the loop ends.
+- **Explicit termination**: after outputting the iteration boundary message or completion promise, **you must end your response immediately**. Do not perform additional tool calls, checks, summaries, or any other actions. The `claude -p` process exits when your response ends — any extra output wastes context and delays the next iteration.
 - **Context reset**: each iteration starts in a completely new `claude -p` process. Previous iteration's conversation is lost, so all state must be passed via files (session_continuation.json, reports, cache).
 - **Single file recording principle**: review discussions must be recorded in a single file `experiment_{N}_detail.md` (or `pre_review_discussion.md` for pre-review). No separate files per reviewer/cycle.
