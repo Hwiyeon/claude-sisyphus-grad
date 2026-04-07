@@ -85,7 +85,7 @@ Create directories if they don't exist: `research/logs/{YYYY-MM-DD}/{experiment_
   "progress": {
     "experiments_completed": 0,
     "next_experiment_n": 1,
-    "next_run_name": "{YYYYMMDD}-v01",
+    "next_run_name": "{experiment_title}/{YYYYMMDD}_v01",
     "current_git_branch": null,
     "subset_phase": "{'subset' if subset is true, null if false}",
     "decision_history": []

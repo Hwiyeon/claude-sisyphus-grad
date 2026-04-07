@@ -19,8 +19,8 @@
 
 ## Training Execution
 
-- run_name is generated in `YYYYMMDD-v{experiment_number 2-digit}` format (e.g., `20240315-v01`)
-  - Use `progress.next_run_name` if present
+- run_name is generated in `{experiment_title}/{YYYYMMDD}_v{experiment_number 2-digit}` format (e.g., `ego_dropout/20240315_v01`)
+  - Use `progress.next_wandb_run_name` if present
 - Write run_name directly into the logging name field in config file, then run training (when using wandb etc.):
   ```bash
   conda activate {env} && python {script} --config {config}

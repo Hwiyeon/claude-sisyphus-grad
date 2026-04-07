@@ -199,7 +199,7 @@ After Step 2 review discussion, branch per Judge decision:
    - `status`: `"pending_resume"`
    - `progress.experiments_completed`: count completed so far
    - `progress.next_experiment_n`: next experiment number
-   - `progress.next_run_name`: next run name
+   - `progress.next_wandb_run_name`: next run name
    - `progress.current_git_branch`: current git branch (new branch name for algo_modify)
    - `progress.subset_phase`: value determined in step 2 above
    - `next_action`: modification plan per review conclusion
@@ -225,7 +225,7 @@ When Step 2 review of subset experiment deems it **promising** (transition to fu
 2. **Update `session_continuation.json`**:
    - `status`: `"pending_resume"`
    - `progress.subset_phase`: `"full"`
-   - Update `progress.next_experiment_n`, `next_run_name`, etc.
+   - Update `progress.next_experiment_n`, `next_wandb_run_name`, etc.
    - `next_action`: `{ "type": "subset_to_full", "description": "subset validation passed → switch to full dataset" }`
    - `mid_experiment_recovery`: `null`
 

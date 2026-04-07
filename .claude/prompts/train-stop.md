@@ -117,7 +117,7 @@ Triggered when `$ARGUMENTS` starts with `reset`. Performs immediate stop + full 
    🗑️ Reset will delete the following for "{experiment_title}":
    - Session dir: research/logs/{date}/{experiment_title}/ (cache, reports, results)
    - Output dir: {output_dir}/{run_name}/ (checkpoints, wandb_run_id.txt, saved config)
-   - wandb runs matching: {run_name_pattern} (YYYYMMDD-v*)
+   - wandb runs matching: {run_name_pattern} ({experiment_title}/YYYYMMDD_v*)
 
    Proceed? (y/n)
    ```
