@@ -79,6 +79,25 @@ cd your-project/research && git init && git remote add origin <your-repo-url>
 
 → [리뷰 파이프라인 상세](multi-agent-review.ko.md)
 
+### `claude-train-watch`
+
+실행 중인 `/train` 세션의 학습 출력을 실시간으로 확인합니다 — 직접 명령을 실행한 것처럼 tqdm 진행 상황을 볼 수 있습니다.
+
+```bash
+# 학습 프로세스 자동 감지
+./scripts/claude-train-watch.sh
+
+# 특정 스크립트 매칭
+./scripts/claude-train-watch.sh "my_train.py"
+
+# 선택: alias 등록으로 빠른 접근
+alias claude-train-watch='./scripts/claude-train-watch.sh'
+```
+
+Python 학습 프로세스를 찾아 `/proc/<pid>/fd`를 통해 stdout을 추적합니다. `Ctrl+C`로 감시를 중단해도 학습은 백그라운드에서 계속됩니다.
+
+> **참고:** Linux (`/proc` 파일시스템)에서만 동작합니다. macOS에서는 사용 불가.
+
 ---
 
 ## 연구노트

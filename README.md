@@ -83,6 +83,25 @@ Runs the multi-agent review pipeline as a standalone command — without startin
 
 → [Review pipeline details](docs/multi-agent-review.md)
 
+### `claude-train-watch`
+
+Live-watch the training output from a running `/train` session — see tqdm progress in real time as if you ran the command yourself.
+
+```bash
+# Auto-detect the training process
+./scripts/claude-train-watch.sh
+
+# Match a specific script
+./scripts/claude-train-watch.sh "my_train.py"
+
+# Optional: add an alias for quick access
+alias claude-train-watch='./scripts/claude-train-watch.sh'
+```
+
+Works by finding the Python training process and following its stdout via `/proc/<pid>/fd`. Press `Ctrl+C` to stop watching — training continues in the background.
+
+> **Note:** Requires Linux (`/proc` filesystem). Not available on macOS.
+
 ---
 
 ## Research Notes
