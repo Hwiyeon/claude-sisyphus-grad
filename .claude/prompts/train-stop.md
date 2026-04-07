@@ -58,13 +58,13 @@ The orchestrator may not poll in time, so act directly:
 
 ### `mode=review` or `mode=report`
 
-The orchestrator will detect the signal file during its next poll cycle and handle the shutdown gracefully.
+Training is killed immediately. The orchestrator then performs the requested report/review before exiting.
 
-1. Print:
+1. **Kill training process**: read `mid_experiment_recovery.training_pid` from `session_continuation.json`. If present and alive (`kill -0`), kill it (`kill {pid}`)
+2. Print:
    ```
    🛑 Stop signal sent (mode={mode}) to "{experiment_title}".
-   The orchestrator will detect this on its next poll cycle and:
-   - Kill the training process
+   Training process killed. The orchestrator will:
    - {"Run full multi-agent review and record results" if review}
    - {"Write session report summary" if report}
    - Set status to stopped and exit
@@ -72,7 +72,7 @@ The orchestrator will detect the signal file during its next poll cycle and hand
    Monitor: tail -f {session_dir}/cache/loop.log
    ```
 
-※ For `review`/`report`, the actual stop handling is done by the orchestrator (see train-monitor.md Stop Signal Handling). This command only writes the signal file and informs the user.
+※ Training is killed both here (for the interactive session case) and by `train-loop.sh` (for the between-iterations case). The orchestrator handles report/review on the next poll or iteration.
 
 ---
 
