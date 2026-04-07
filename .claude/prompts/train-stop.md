@@ -58,21 +58,41 @@ The orchestrator may not poll in time, so act directly:
 
 ### `mode=review` or `mode=report`
 
-Training is killed immediately. The orchestrator then performs the requested report/review before exiting.
+Act directly from the user session — do NOT wait for the orchestrator to detect the stop signal. The orchestrator may be in a long adaptive sleep and unable to respond in time.
 
 1. **Kill training process**: read `mid_experiment_recovery.training_pid` from `session_continuation.json`. If present and alive (`kill -0`), kill it (`kill {pid}`)
-2. Print:
-   ```
-   🛑 Stop signal sent (mode={mode}) to "{experiment_title}".
-   Training process killed. The orchestrator will:
-   - {"Run full multi-agent review and record results" if review}
-   - {"Write session report summary" if report}
-   - Set status to stopped and exit
+2. **Kill train-loop.sh**: find the loop process via `pgrep -f "train-loop.sh.*{experiment_title}"` and kill it. Also kill the orchestrator claude process if found via `pgrep -f "claude.*-p.*{experiment_title}"` (it may be stuck in adaptive sleep)
+3. **Sync metric_cache from training_log.txt**: the orchestrator may not have recorded all completed epochs. Before review/report, sync any missing epochs:
+   - Read the config to find `output_dir` → locate `{output_dir}/{run_name}/training_log.txt`
+   - Read `cache/metric_last_step.txt` to find last recorded epoch
+   - Parse any newer `Epoch N/M | ...` lines from training_log.txt
+   - Append missing epochs to `cache/metric_cache.jsonl` as JSONL
+   - Update `cache/metric_last_step.txt`
+   - Update `mid_experiment_recovery.epochs_completed` in `session_continuation.json`
+   - Also append missing epoch entries to `reports/experiment_{N}_detail.md`
+4. **Branch by mode**:
 
-   Monitor: tail -f {session_dir}/cache/loop.log
-   ```
+   **`mode=report`**:
+   - Call scribe agent to write session report summary in `reports/session_report.md` (pass file paths for metric_cache, experiment_detail, session_continuation)
+   - Update `session_continuation.json`: set `status` to `"stopped"`, update `written_at`
+   - GitHub sync
+   - Print:
+     ```
+     📊 Session report written for "{experiment_title}".
+     Report: {session_dir}/reports/session_report.md
+     ```
 
-※ Training is killed both here (for the interactive session case) and by `train-loop.sh` (for the between-iterations case). The orchestrator handles report/review on the next poll or iteration.
+   **`mode=review`**:
+   - Save current results to `results/experiment_{N}_stopped.json` (from metric_cache.jsonl)
+   - Read `.claude/prompts/train-review-pipeline.md` and execute the full multi-agent review pipeline (Reviewers A-G, Judge) using the collected results
+   - Record review results in `reports/experiment_{N}_detail.md`
+   - Update `session_continuation.json`: set `status` to `"stopped"`, update `written_at`
+   - GitHub sync
+   - Print:
+     ```
+     🔍 Review complete for "{experiment_title}".
+     Detail: {session_dir}/reports/experiment_{N}_detail.md
+     ```
 
 ---
 
