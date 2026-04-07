@@ -41,37 +41,64 @@ When `parallel` is 2 or more, train **multiple models simultaneously** based on 
 
 ## Monitoring During Training: Orchestrator Inline Polling Loop
 
-**Do not use background monitoring agents.** The orchestrator directly runs the loop below:
+**Do not use background monitoring agents.** The orchestrator directly runs the loop below.
+
+### Monitoring Source: training_log.txt (NOT stdout)
+
+**CRITICAL**: Do NOT poll stdout (TaskOutput) for epoch detection. The training script's stdout contains tqdm progress bars that produce ~100KB per epoch, which floods the orchestrator context.
+
+Instead, monitor the **training log file** written by the training script:
+- **Log file path**: read `output_dir` from the config file → `{output_dir}/{run_name}/training_log.txt`
+- The training script appends 1 line per epoch + `[EPOCH_DONE] N/M` marker
+- Use `tail` or `grep` via Bash to read only new lines, not the Read tool (which returns full content)
+
+**Epoch detection command** (use Bash tool):
+```bash
+grep '\[EPOCH_DONE\]' {log_file_path} | tail -1
+```
+To find new epochs since last check:
+```bash
+grep '\[EPOCH_DONE\]' {log_file_path} | awk -F'[] /[]' '{print $2}' | tail -n +{last_seen+1}
+```
+
+**stdout is only used for**: checking if the training process has terminated (TaskOutput block=false, check exit code). Never parse stdout content for metrics — it's polluted by tqdm.
+
+### Polling Loop
 
 ```
+# Track last processed epoch number (start at 0, or mid_experiment_recovery.epochs_completed)
+last_epoch = 0
+
 while training process is running:
   0. check {session_dir}/cache/stop_signal.json → if exists, enter Stop Signal Handling below
-  1. stdout tail (TaskOutput block=false) → detect "[EPOCH_DONE] N/M" pattern
-  2. if detected → run Per-Epoch Processing Procedure below, one epoch at a time (even if multiple accumulated)
-  3. if not detected → adaptive sleep then repeat (see rules below)
+  1. grep [EPOCH_DONE] from training_log.txt → find epochs > last_epoch
+  2. if new epochs found → run Per-Epoch Processing Procedure below, one epoch at a time
+  3. if no new epochs → adaptive sleep then repeat (see rules below)
+  4. confirm process alive: kill -0 {pid} (Bash) — if dead, collect final results
 ```
 
 **Per-Epoch Processing Procedure** (must complete all of the following per epoch):
-1. incremental metric query → `cache/metric_cache.jsonl` append
+1. parse metrics from the log line preceding `[EPOCH_DONE]` → `cache/metric_cache.jsonl` append
 2. `session_continuation.json` — **ATOMIC update** in a SINGLE Edit call: set `status = "pending_resume"`, update `written_at` to current ISO timestamp, AND update `mid_experiment_recovery`. Never update these separately — a partial write caused by context exhaustion must leave the file in a recoverable state.
 3. inline abort decision (see rules below)
 4. Edit `experiment_{N}_detail.md` directly (orchestrator records instead of scribe)
 5. **GitHub sync** (Step 3 rules)
 
-**Accumulated epoch rule**: When waking from adaptive sleep, multiple `[EPOCH_DONE]` entries may have accumulated in stdout. In this case, **process epochs one at a time in order**. Never batch multiple epochs or run sync only once at the end. Example: E4, E5, E6 accumulated → process E4+sync → process E5+sync → process E6+sync.
+**Accumulated epoch rule**: When waking from adaptive sleep, multiple `[EPOCH_DONE]` entries may have accumulated. In this case, **process epochs one at a time in order**. Never batch multiple epochs or run sync only once at the end. Example: E4, E5, E6 accumulated → process E4+sync → process E5+sync → process E6+sync.
 
-**Epoch detection**: match regex `\[EPOCH_DONE\] (\d+)/(\d+)` in stdout.
+**Epoch detection**: match regex `\[EPOCH_DONE\] (\d+)/(\d+)` in training_log.txt.
 
 ---
 
 ## Adaptive Sleep (key to context conservation)
 
 - Do **not use fixed-interval sleep** when waiting for epochs. Instead, estimate epoch duration and handle most of the wait with a single sleep:
-  1. **First epoch**: wait for completion using `TaskOutput block=true timeout=600000` (max 10 min, blocking). If not sufficient, then poll at 60s intervals.
+  1. **First epoch**: `sleep 300` (5 min default), then poll at 60s intervals.
   2. **2nd epoch onwards**: compute `avg_epoch_time` from previous epochs. `sleep_time = avg_epoch_time * 0.85` (sleep until 85% point in one go). Then poll at 30s intervals.
   3. **Calculation example**: if previous epoch average is 6000s → `sleep 5100` once → then 30s polling (max ~10 times). **Total polling calls: ~10/epoch** (95% reduction vs. previous ~100-200 calls).
 - Compute `avg_epoch_time` from the `epoch_time_s` field in `cache/metric_cache.jsonl`.
-- Before sleeping, confirm process is still alive via `TaskOutput block=false` to detect early termination.
+- **avg_epoch_time must only include successful training epochs**. Exclude failed attempts (OOM crashes, setup time, etc.) from the calculation. If no valid epoch time data exists yet, use 300s as default.
+- Before sleeping, confirm process is still alive via `kill -0 {pid}` (Bash) to detect early termination.
 
 ---
 
@@ -109,12 +136,11 @@ while training process is running:
 ## Metric Query (incremental)
 
 1. Read last queried step from `cache/metric_last_step.txt` (0 if not found)
-2. Query logging system API (wandb: `run.scan_history(keys=[...], min_step=last_step+1)`, others: see `METRIC_FETCH_CMD` in CLAUDE.md)
+2. **Primary**: parse metrics from training_log.txt — the log line immediately before `[EPOCH_DONE] N/M` contains all epoch metrics in a structured format. Use `grep` or `sed` to extract the relevant line.
 3. Append result as 1 JSONL line to `cache/metric_cache.jsonl`
 4. Update `cache/metric_last_step.txt`
 
-**Fallback on metric query failure**: parse metrics directly from stdout
-- Pattern: parse according to the project's stdout format. Use `EPOCH_LOG_PATTERN` from CLAUDE.md if defined. Otherwise parse based on `[EPOCH_DONE]` marker (see below)
+**Fallback**: if training_log.txt is unavailable, query logging system API (wandb: `run.scan_history(keys=[...], min_step=last_step+1)`)
 
 **Information kept in orchestrator context**: 1 line per epoch (~30 tokens) — e.g., `E5: metric1=0.42 metric2=0.51 — continue`
 
