@@ -1,3 +1,8 @@
+---
+name: train
+description: 딥러닝 학습 실험 자동화. "/train script=... config=... experiment_title=... env=..." 형태로 호출
+---
+
 # Experiment Automation Launcher (External Script Loop)
 
 This command parses arguments, creates the initial state, and runs `scripts/train-loop.sh` in the background to automatically repeat the experiment loop.
@@ -22,13 +27,17 @@ Parse arguments in the format below. Use defaults for unspecified items:
 | `review_cycles` | number of G Research Brief → round 2 → round 3 → Judge decision cycle repetitions | 1 |
 | `goal` | experiment termination condition (metric-based) | optional |
 | `decision_criteria` | decision criteria (free text or `@filepath`) | optional |
+<!-- PROJECT_INLINE_START -->
 | `env` | Python virtual environment name (training runs after `conda activate {env}`) | required |
+<!-- PROJECT_INLINE_END -->
 | `parallel` | number of models to train simultaneously. If >=2, each runs as a separate parallel process | `1` |
 | `instructions` | pre-instructions for the orchestrator before training. Free text or `@filepath` to reference previous reports. Multiple files: `@path1 @path2` | optional |
 | `analyze` | before training, analyze best model performance, training reports, and research logs to derive and apply improvements. May include fundamental changes to architecture, loss, data pipeline, etc. | `false` |
 | `subset` | if `true`, first validate with 20% subset, then switch to full dataset if promising | `false` |
 | `circuit_breaker` | if the same Judge decision type occurs N times consecutively, pass pattern detection to the Judge during round 2 review to strengthen decision direction. null disables this | `null` |
+<!-- PROJECT_INLINE_START -->
 | `lang` | output language for all records, messages, and reports (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
+<!-- PROJECT_INLINE_END -->
 
 After parsing, print the parsed values once for user confirmation before starting.
 Pass the resolved `lang` value to all subagents and recording steps (Scribe, reviewers, etc.).
@@ -85,7 +94,9 @@ Create directories if they don't exist: `research/logs/{YYYY-MM-DD}/{experiment_
   "progress": {
     "experiments_completed": 0,
     "next_experiment_n": 1,
+<!-- PROJECT_INLINE_START -->
     "next_run_name": "{experiment_title}/{YYYYMMDD}_v01",
+<!-- PROJECT_INLINE_END -->
     "current_git_branch": null,
     "subset_phase": "{'subset' if subset is true, null if false}",
     "decision_history": []

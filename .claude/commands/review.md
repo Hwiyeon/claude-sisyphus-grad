@@ -20,7 +20,9 @@ Can be used standalone outside the `/train` loop; performs a one-time review wit
 | `review_cycles` | number of G→round2→round3→Judge cycle repetitions | 1 |
 | `config` | config file path (passed to reviewers as reference) | optional |
 | `script` | training script path (passed to reviewers as reference) | optional |
+<!-- PROJECT_INLINE_START -->
 | `lang` | output language for review output (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
+<!-- PROJECT_INLINE_END -->
 
 ---
 
@@ -30,7 +32,9 @@ Can be used standalone outside the `/train` loop; performs a one-time review wit
 
 Parse arguments from `$ARGUMENTS`.
 - Verify that `results` and `detail` files exist
+<!-- PROJECT_INLINE_START -->
 - Infer metric cache path: `cache/metric_cache.jsonl` in the same session directory as `detail` file
+<!-- PROJECT_INLINE_END -->
 - Print parsed values for user confirmation
 
 ### Step 2: Load Review Pipeline Module
@@ -44,7 +48,9 @@ Run multi-agent review per `train-review-pipeline.md` rules:
   - `experiment_n`: extracted from filename (e.g., `experiment_3.json` → 3)
   - `detail_file`: `detail` argument
   - `results_file`: `results` argument
+<!-- PROJECT_INLINE_START -->
   - `metric_cache`: inferred path (skip if not found)
+<!-- PROJECT_INLINE_END -->
   - `review_cycles`: argument value
   - `config`, `script`: argument values (not passed to reviewers if absent)
 

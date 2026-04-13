@@ -14,6 +14,12 @@
 
 ---
 
+## 최근 업데이트
+
+- **2026-04-13** — `.claude/commands/*.md`에 `<!-- PROJECT_INLINE_START --> / <!-- PROJECT_INLINE_END -->` 마커 추가. downstream 프로젝트가 주로 커스터마이징하는 섹션 (`lang` 기본값, 모듈 테이블, `env` 기본값 등) 주변에 배치됩니다. 렌더링되지 않는 HTML 주석이라 sisyphus 자체 사용에는 영향이 없고, downstream 프로젝트는 이 마커를 sync 도구의 anchor로 활용해 upstream의 generic 개선사항을 가져오면서 로컬 커스터마이징을 보존할 수 있습니다.
+
+---
+
 ## 빠른 시작
 
 ```bash

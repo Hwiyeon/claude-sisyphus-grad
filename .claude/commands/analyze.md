@@ -21,7 +21,9 @@ This is a command that runs the analyze mode of `/train` independently.
 | `review_cycles` | number of G→round2→round3→Judge cycle repetitions | 1 |
 | `apply` | whether to automatically apply the Judge decision's NEXT_ACTION | `true` |
 | `branch_name` | branch name to create when modifying code | `analyze-mod` |
+<!-- PROJECT_INLINE_START -->
 | `lang` | output language for reports and messages (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
+<!-- PROJECT_INLINE_END -->
 
 ---
 

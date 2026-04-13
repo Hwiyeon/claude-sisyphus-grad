@@ -9,7 +9,9 @@ Saves the discussion from the current conversation session as a structured discu
 
 | argument | description | default |
 |----------|-------------|---------|
+<!-- PROJECT_INLINE_START -->
 | `lang` | output language for the saved discussion file (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
+<!-- PROJECT_INLINE_END -->
 
 ---
 
@@ -20,6 +22,7 @@ Saves the discussion from the current conversation session as a structured discu
 Refer to the table below and determine in 1 line which module the current discussion belongs to.
 Decide quickly by keyword matching without deep analysis.
 
+<!-- PROJECT_INLINE_START -->
 | Module key | Keywords | discussion path | topic log path |
 |------------|----------|-----------------|----------------|
 | `module_a` | keyword1, keyword2, keyword3 | `research/topics/module_a/discussion/` | `research/topics/module_a/log.md` |
@@ -28,6 +31,7 @@ Decide quickly by keyword matching without deep analysis.
 | `meta` | research system, logging, workflow, skill, Claude Code | `research/topics/analysis/discussion/` | (none) |
 
 > **Customize this table** for your project. Replace `module_a`, `module_b`, `module_c` with your actual research modules and their keywords. The `meta` row can be kept as-is for general workflow discussions.
+<!-- PROJECT_INLINE_END -->
 
 If the discussion spans multiple modules, choose the one with the largest share.
 

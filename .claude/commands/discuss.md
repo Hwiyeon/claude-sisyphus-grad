@@ -5,7 +5,9 @@ Loads research logs and architecture documents into context and starts a researc
 ## Usage
 ```
 /discuss                    # discussion based on overall research status
+<!-- PROJECT_INLINE_START -->
 /discuss <topic>            # in-depth discussion on a specific topic
+<!-- PROJECT_INLINE_END -->
 /discuss <topic> lang=en    # discussion in a specific language
 /discuss $ARGUMENTS         # free topic
 ```
@@ -13,7 +15,9 @@ Loads research logs and architecture documents into context and starts a researc
 | argument | description | default |
 |----------|-------------|---------|
 | `topic` | discussion topic (positional) | optional |
+<!-- PROJECT_INLINE_START -->
 | `lang` | output language (`ko`, `en`, etc.). The project's CLAUDE.md defines the default | project default |
+<!-- PROJECT_INLINE_END -->
 
 ## Procedure
 
@@ -41,9 +45,11 @@ If context_summary.md doesn't exist:
 
 ### Step 3: Additional Topic-Specific Load (optional)
 
+<!-- PROJECT_INLINE_START -->
 Based on `$ARGUMENTS`, Read relevant documents from `research/topics/<topic>/` folder:
 - architecture files, experiment_log files, log.md, etc.
 - If no argument, start discussion based on overall status without additional loading
+<!-- PROJECT_INLINE_END -->
 
 ### Step 4: Start Discussion
 
@@ -57,5 +63,7 @@ Start the discussion based on loaded context:
 
 During discussion:
 - If details are needed, point to original file paths and suggest Reading
+<!-- PROJECT_INLINE_START -->
 - Code files (models/, configs/, etc.) may also be freely referenced
+<!-- PROJECT_INLINE_END -->
 - If user includes think/ultrathink keywords, switch to extended thinking mode for deep analysis
