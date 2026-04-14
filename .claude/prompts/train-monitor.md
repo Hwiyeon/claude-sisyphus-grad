@@ -23,8 +23,9 @@
   - Use `progress.next_wandb_run_name` if present
 - Write run_name directly into the logging name field in config file, then run training (when using wandb etc.):
   ```bash
-  conda activate {env} && python {script} --config {config}
+  source /home/hwing/miniforge3/etc/profile.d/conda.sh && conda activate {env} && python {script} --config {config}
   ```
+  **CRITICAL — launch method**: MUST use `conda activate && python` as shown above. **NEVER use `conda run`** — it wraps stdout in pipes, breaking `claude-train-watch` fd-based process attachment. The training process's fd/1 must point to the Bash tool's task output file (a regular file), not a pipe.
   ※ If no logging tool is used, specify run_name in stdout output header etc.
 - Training script is run in **background** (`run_in_background`), orchestrator polls stdout directly
 
