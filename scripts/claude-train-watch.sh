@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-PATTERN="${1:-pretrain\.py\|train\.py\|finetune\.py}"
+PATTERN="${1:-pretrain\.py|train\.py|finetune\.py}"
 
 # Find the training process
 pid=$(pgrep -f "python.*($PATTERN)" 2>/dev/null | head -1 || true)
