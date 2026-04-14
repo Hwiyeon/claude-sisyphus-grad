@@ -107,14 +107,35 @@ while training process is running:
   4. update last_epoch → loop back to step 1
 ```
 
-**Per-Epoch Processing Procedure** (must complete all of the following per epoch):
+**Per-Epoch Processing Procedure** — delegated to a **foreground subagent** to keep the orchestrator's main context clean:
+
+When new epochs are detected, call `Agent(subagent_type="general-purpose")` with the following inputs in the prompt:
+- `epoch_range`: epochs to process (e.g., `[5, 6, 7]`)
+- `log_path`: path to `training_log.txt`
+- `session_dir`: session directory path
+- `experiment_n`: current experiment number
+- `run_name`: current run name
+- `config_path`: config file path (for reading `output_dir`)
+- `training_pid`: PID of the training process
+- `metric_cache_path`: path to `cache/metric_cache.jsonl`
+- `session_continuation_path`: path to `session_continuation.json`
+
+The subagent executes **all 5 steps per epoch**, one epoch at a time:
 1. parse metrics from the log line preceding `[EPOCH_DONE]` → `cache/metric_cache.jsonl` append
-2. `session_continuation.json` — **ATOMIC update** in a SINGLE Edit call: set `status = "pending_resume"`, update `written_at` to current ISO timestamp, AND update `mid_experiment_recovery`. Never update these separately — a partial write caused by context exhaustion must leave the file in a recoverable state.
-3. inline abort decision (see rules below)
-4. Edit `experiment_{N}_detail.md` directly (orchestrator records instead of scribe)
+2. `session_continuation.json` — **ATOMIC update** in a SINGLE Edit call: set `status = "pending_resume"`, update `written_at` to current ISO timestamp, AND update `mid_experiment_recovery`. Never update these separately.
+3. inline abort decision (NaN/Inf → auto abort, 5+ consecutive val_loss increase → escalate to quick reviewer within the subagent)
+4. Edit `experiment_{N}_detail.md` (recording format unchanged — see Direct Orchestrator Recording section below)
 5. **GitHub sync** (Step 3 rules)
 
-**Accumulated epoch rule**: When the background monitor returns "EPOCH N" with N > last_epoch + 1, multiple epochs have completed during the wait. **Process epochs one at a time in order**. Never batch multiple epochs or run sync only once at the end. Example: E4, E5, E6 accumulated → process E4+sync → process E5+sync → process E6+sync.
+**Subagent return format** (this is ALL that enters the main orchestrator context):
+```
+E5: continue | val_loss=0.42 spearman=0.51
+E6: continue | val_loss=0.40 spearman=0.53
+E7: abort (NaN) | val_loss=NaN
+```
+One line per epoch, ≤30 tokens per line. If any epoch returns `abort`, the orchestrator enters the On Abort flow.
+
+**Accumulated epoch rule**: When the background monitor returns "EPOCH N" with N > last_epoch + 1, pass all accumulated epochs to a **single subagent call**. The subagent processes them one at a time in order internally (E4+sync → E5+sync → E6+sync). Never batch multiple epochs into one sync.
 
 **Epoch detection**: match regex `\[EPOCH_DONE\] (\d+)/(\d+)` in training_log.txt.
 
@@ -125,8 +146,8 @@ Output tokens are **not cacheable** — every token of model text output is bill
 1. Text output between tool calls: **≤10 tokens**. No status narration, no progress commentary.
 2. Acceptable: `"."`, `"E6 done"`, `"chk stop"`, `"timeout, retry"`.
 3. Unacceptable: `"E6 at 43% (251/588, 2:34 elapsed). ~210s remaining."`.
-4. Longer output is justified only when writing to files via Edit tool (e.g., `experiment_{N}_detail.md` recording, metric parsing).
-5. Epoch inline decision format: `"E6: continue"` or `"E6: abort (NaN)"` — one short line.
+4. Per-epoch processing output: **subagent handles all file writes**. Orchestrator only receives the 1-line-per-epoch summary.
+5. Epoch inline decision format (from subagent return): `"E6: continue"` or `"E6: abort (NaN)"` — one short line.
 
 ---
 
@@ -195,11 +216,7 @@ When the background Bash monitor returns "CRASH" or "CRASH zombie":
 - Even if the session terminates abnormally (e.g., context exhausted), this file persists for automatic recovery when the external wrapper restarts.
 - Reset `mid_experiment_recovery` to `null` AND `status` back to `"pending_resume"` (keep it at pending_resume since we're between iteration end and next experiment) when training completes normally.
 
-**Context defense rules**:
-- If **20 or more epochs remain** and **50 or more epochs have already been processed**, record results so far in `mid_experiment_recovery` and end the iteration.
-- Set `session_continuation.json`'s `status` to `"pending_resume"` and `mid_experiment_recovery.status` to `"in_progress"`. Do not stop the training process (it keeps running in background).
-- When the external wrapper creates a new session, monitoring resumes with `pending_resume` + `mid_experiment_recovery` (polling restarts in a fresh context).
-- This rule is a safeguard to replace only the orchestrator with a fresh context without interrupting the training process.
+**Context defense rules**: DISABLED — per-epoch processing is delegated to subagents, so the main orchestrator context grows at ~150 tokens/epoch instead of ~1,100. The previous 50-epoch forced iteration cutoff is no longer needed. The orchestrator can monitor 100+ epochs within a single iteration without context pressure.
 
 ---
 
@@ -218,7 +235,7 @@ When the background Bash monitor returns "CRASH" or "CRASH zombie":
 
 ## Inline Epoch Decision + Escalation
 
-After epoch detection and metric cache update, the orchestrator **directly** checks numbers from cache to make a decision. Handle inline without Agent calls; only escalate to the quick reviewer when suspicious.
+These rules are executed **inside the per-epoch subagent**, not in the main orchestrator. The subagent checks metrics from cache to make a decision:
 
 **Auto abort (immediate, no Agent call)**:
 - NaN or Inf detected
@@ -241,18 +258,18 @@ On escalation, call 1 quick reviewer via **sync Task**:
 
 ---
 
-## Direct Orchestrator Recording (Per Epoch)
+## Per-Epoch Recording Format (executed by subagent)
 
-After decision, the orchestrator **directly** appends to `experiment_{N}_detail.md` via the Edit tool. Do not call the scribe Agent.
+The per-epoch subagent appends to `experiment_{N}_detail.md` via the Edit tool. These formats are included in the subagent prompt so it knows the recording conventions:
 
-**Normal (continue, no Agent call)**:
+**Normal (continue)**:
 ```markdown
 #### E{N}/{total} ({elapsed}s)
 `{metric_key}={val} | ... | lr={lr}` (project's key metrics)
 **auto decision**: `continue`
 ```
 
-**After escalation (when quick reviewer is called)**:
+**After escalation (when quick reviewer is called within subagent)**:
 ```markdown
 #### E{N}/{total} ({elapsed}s)
 `{metric_key}={val} | ... | lr={lr}` (project's key metrics)
