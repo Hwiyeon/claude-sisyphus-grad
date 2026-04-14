@@ -20,6 +20,7 @@ Research isn't just "run training, check metric, repeat" — the thinking, the d
 
 ## Recent Updates
 
+- **2026-04-14** — `/train` monitoring loop now uses background Bash polling + foreground cache-warming pings, reducing orchestrator token consumption by ~70%. Added terse output rules for between-tool-call text.
 - **2026-04-13** — Added `<!-- PROJECT_INLINE_START --> / <!-- PROJECT_INLINE_END -->` markers in `.claude/commands/*.md` around sections downstream projects commonly customize (`lang` defaults, module tables, `env` defaults, etc.). The markers are invisible HTML comments and do not affect sisyphus usage. Downstream projects can use them as anchors for sync tooling — pulling generic improvements from upstream while preserving local customizations.
 
 ---
