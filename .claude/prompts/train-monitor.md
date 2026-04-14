@@ -42,7 +42,7 @@ When `parallel` is 2 or more, train **multiple models simultaneously** based on 
 
 ## Monitoring During Training: Orchestrator Inline Polling Loop
 
-**Do not use background monitoring agents.** The orchestrator directly runs the loop below.
+**Do not use background monitoring agents** (Task/Agent with `run_in_background`). The orchestrator monitors via a background **Bash** polling script (a shell process, not an agent context) paired with foreground cache-warming sleeps. The model never delegates monitoring logic to a subagent.
 
 ### Monitoring Source: training_log.txt (NOT stdout)
 
@@ -64,18 +64,47 @@ grep '\[EPOCH_DONE\]' {log_file_path} | awk -F'[] /[]' '{print $2}' | tail -n +{
 
 **stdout is only used for**: checking if the training process has terminated (TaskOutput block=false, check exit code). Never parse stdout content for metrics — it's polluted by tqdm.
 
-### Polling Loop
+### Polling Loop (Background Bash + Foreground Cache Warming)
+
+The polling loop uses two parallel tracks to minimize API calls while keeping the prompt cache warm:
+- **Background Bash** (`run_in_background`): a shell script that polls `training_log.txt` internally every 15 seconds. Zero API calls — the shell does the waiting.
+- **Foreground cache warming**: `sleep 240` + single-token `"."` output every ~240 seconds, keeping the prompt cache alive.
 
 ```
 # Track last processed epoch number (start at 0, or mid_experiment_recovery.epochs_completed)
 last_epoch = 0
+LOG = {output_dir}/{run_name}/training_log.txt
+PID = training process PID
 
 while training process is running:
   0. check {session_dir}/cache/stop_signal.json → if exists, enter Stop Signal Handling below
-  1. grep [EPOCH_DONE] from training_log.txt → find epochs > last_epoch
-  2. if new epochs found → run Per-Epoch Processing Procedure below, one epoch at a time
-  3. if no new epochs → adaptive sleep then repeat (see rules below)
-  4. confirm process alive: kill -0 {pid} (Bash) — if dead, collect final results
+
+  1. LAUNCH BACKGROUND MONITOR — Bash(run_in_background=true):
+       timeout {poll_timeout} bash -c '
+         LAST={last_epoch}
+         while true; do
+           NEW=$(grep -c "\[EPOCH_DONE\]" "{LOG}" 2>/dev/null || echo 0)
+           if [ "$NEW" -gt "$LAST" ]; then echo "EPOCH $NEW"; exit 0; fi
+           if ! kill -0 {PID} 2>/dev/null; then echo "CRASH"; exit 1; fi
+           if [ -f /proc/{PID}/status ] && grep -q "^State:.*Z" /proc/{PID}/status 2>/dev/null; then
+             echo "CRASH zombie"; exit 1
+           fi
+           sleep 15
+         done
+       ' || echo "TIMEOUT"
+
+  2. CACHE-WARMING FOREGROUND — while background monitor has not completed:
+       Bash(sleep 240)
+       output "."                    ← single token, keeps prompt cache alive
+       check {session_dir}/cache/stop_signal.json → if exists, kill background task, enter Stop Signal Handling
+       check if background task completed → if yes, break
+
+  3. READ BACKGROUND RESULT:
+       "EPOCH N" → find new epochs > last_epoch → run Per-Epoch Processing below, one epoch at a time
+       "CRASH" or "CRASH zombie" → enter Crash Handling Procedure below
+       "TIMEOUT" → loop back to step 1 (re-launch background monitor with same last_epoch)
+
+  4. update last_epoch → loop back to step 1
 ```
 
 **Per-Epoch Processing Procedure** (must complete all of the following per epoch):
@@ -85,21 +114,61 @@ while training process is running:
 4. Edit `experiment_{N}_detail.md` directly (orchestrator records instead of scribe)
 5. **GitHub sync** (Step 3 rules)
 
-**Accumulated epoch rule**: When waking from adaptive sleep, multiple `[EPOCH_DONE]` entries may have accumulated. In this case, **process epochs one at a time in order**. Never batch multiple epochs or run sync only once at the end. Example: E4, E5, E6 accumulated → process E4+sync → process E5+sync → process E6+sync.
+**Accumulated epoch rule**: When the background monitor returns "EPOCH N" with N > last_epoch + 1, multiple epochs have completed during the wait. **Process epochs one at a time in order**. Never batch multiple epochs or run sync only once at the end. Example: E4, E5, E6 accumulated → process E4+sync → process E5+sync → process E6+sync.
 
 **Epoch detection**: match regex `\[EPOCH_DONE\] (\d+)/(\d+)` in training_log.txt.
 
+### Output Verbosity Rules (Token Conservation)
+
+Output tokens are **not cacheable** — every token of model text output is billed at full rate and counts toward rate limits. Apply these rules to all text output between tool calls during the polling loop:
+
+1. Text output between tool calls: **≤10 tokens**. No status narration, no progress commentary.
+2. Acceptable: `"."`, `"E6 done"`, `"chk stop"`, `"timeout, retry"`.
+3. Unacceptable: `"E6 at 43% (251/588, 2:34 elapsed). ~210s remaining."`.
+4. Longer output is justified only when writing to files via Edit tool (e.g., `experiment_{N}_detail.md` recording, metric parsing).
+5. Epoch inline decision format: `"E6: continue"` or `"E6: abort (NaN)"` — one short line.
+
 ---
 
-## Adaptive Sleep (key to context conservation)
+## Crash Handling Procedure
 
-- Do **not use fixed-interval sleep** when waiting for epochs. Instead, estimate epoch duration and handle most of the wait with a single sleep:
-  1. **First epoch**: `sleep 300` (5 min default), then poll at 60s intervals.
-  2. **2nd epoch onwards**: compute `avg_epoch_time` from previous epochs. `sleep_time = avg_epoch_time * 0.85` (sleep until 85% point in one go). Then poll at 30s intervals.
-  3. **Calculation example**: if previous epoch average is 6000s → `sleep 5100` once → then 30s polling (max ~10 times). **Total polling calls: ~10/epoch** (95% reduction vs. previous ~100-200 calls).
+When the background Bash monitor returns "CRASH" or "CRASH zombie":
+
+1. **Confirm termination**: `kill -0 {PID}` via Bash — expected to fail (process already dead). If still alive (zombie case), `kill -9 {PID}`.
+2. **Collect last epoch**: `grep '\[EPOCH_DONE\]' {LOG} | tail -1` — determine last successfully completed epoch.
+3. **Save partial results**: generate `results/experiment_{N}_aborted.json` from `cache/metric_cache.jsonl` (all epochs collected so far).
+4. **Atomic state update**: `session_continuation.json` — SINGLE Edit call:
+   - `status`: `"pending_resume"`
+   - `written_at`: current ISO timestamp
+   - `mid_experiment_recovery.status`: `"crashed"`
+   - `mid_experiment_recovery.epochs_completed`: last completed epoch number
+5. **Record in detail file**: Edit `experiment_{N}_detail.md`:
+   ```markdown
+   #### CRASH detected after E{last_epoch}/{total}
+   Training process (PID {PID}) terminated unexpectedly.
+   Last metrics: `{key}={val} | ...`
+   **auto decision**: `abort` — process crash
+   ```
+6. **GitHub sync** (Step 3 rules)
+7. **Enter Step 2**: On Abort flow — conduct multi-agent review based on partial results.
+
+**Crash detection coverage**:
+- `kill -0` detects all process terminations: OOM kill, segfault, user kill, normal exit
+- Zombie check (`/proc/{PID}/status` State=Z) catches processes whose parent hasn't called `wait()`
+- Detection latency: max 15 seconds (background Bash polling interval)
+
+---
+
+## Poll Timeout Calculation
+
+- Do **not use fixed-interval sleep** for foreground waiting. The background Bash handles all polling internally. The orchestrator only needs to set the correct `poll_timeout` for the background script's `timeout` command:
+  1. **First epoch**: `poll_timeout = 540` (9 minutes).
+  2. **2nd epoch onwards**: `poll_timeout = min(ceil(avg_epoch_time * 1.2), 540)`.
+  3. **On TIMEOUT**: the background monitor exits with "TIMEOUT". The orchestrator immediately re-launches a new background monitor with the same `last_epoch` — no epoch data is lost. This handles epochs longer than 9 minutes seamlessly.
 - Compute `avg_epoch_time` from the `epoch_time_s` field in `cache/metric_cache.jsonl`.
-- **avg_epoch_time must only include successful training epochs**. Exclude failed attempts (OOM crashes, setup time, etc.) from the calculation. If no valid epoch time data exists yet, use 300s as default.
-- Before sleeping, confirm process is still alive via `kill -0 {pid}` (Bash) to detect early termination.
+- **avg_epoch_time must only include successful training epochs**. Exclude failed attempts (OOM crashes, setup time, etc.) from the calculation. If no valid epoch time data exists yet, use `poll_timeout = 540`.
+- **Cache-warming interval**: fixed at **240 seconds**. This keeps the prompt cache alive under both 1-hour TTL (current, with telemetry) and 5-minute TTL (fallback). No configuration needed.
+- **API calls per epoch**: typically 3–4 (launch background + 1–2 cache-warming pings + read result), vs. ~30 with the previous polling approach.
 
 ---
 
