@@ -16,6 +16,7 @@
 
 ## 최근 업데이트
 
+- **2026-04-20** — `/research-state` 커맨드 추가. `research/state.md` 스냅샷을 유지합니다 — 전체 `/discuss` 캐시와 사람이 읽는 `README.md` 사이에 위치하는 "지금 뭐 하고 있는지" 중심의 간결한(~3~5K tokens) 뷰입니다. AUTO/MANUAL 섹션 마커(HTML 주석)로 빌드 스크립트가 자동 생성하는 영역(드리프트 경고, 포인터, 타임스탬프)과 산문 영역(현재 포커스 + decision tree, 최근 결정사항, 기각된 경로)을 분리합니다. 산문 영역은 Claude가 제안 → 사용자 승인 방식으로만 변경되어 직접 편집 내용이 보존됩니다. `--export`로 외부 LLM 공유용 self-contained 번들 생성도 지원합니다.
 - **2026-04-14** — `/train` 모니터링 루프가 background Bash 폴링 + foreground 캐시 워밍 방식으로 변경되어 orchestrator 토큰 소모량 ~70% 절감. 도구 호출 사이 텍스트 간결화 규칙 추가.
 - **2026-04-13** — `.claude/commands/*.md`에 `<!-- PROJECT_INLINE_START --> / <!-- PROJECT_INLINE_END -->` 마커 추가. downstream 프로젝트가 주로 커스터마이징하는 섹션 (`lang` 기본값, 모듈 테이블, `env` 기본값 등) 주변에 배치됩니다. 렌더링되지 않는 HTML 주석이라 sisyphus 자체 사용에는 영향이 없고, downstream 프로젝트는 이 마커를 sync 도구의 anchor로 활용해 upstream의 generic 개선사항을 가져오면서 로컬 커스터마이징을 보존할 수 있습니다.
 
@@ -141,12 +142,28 @@ Python 학습 프로세스를 찾아 `/proc/<pid>/fd`를 통해 stdout을 추적
 /save-discussion title="positional encoding 트레이드오프 2026-03-24"
 ```
 
+### `/research-state`
+
+`research/state.md`를 유지합니다 — 빠른 재진입과 외부 LLM 공유를 위한 간결한(~3~5K tokens) "지금 상태" 스냅샷입니다. history 중심의 `README.md`, 내부 인덱스인 `/discuss` 캐시를 보완하는 역할입니다.
+
+```
+/research-state           # AUTO 섹션 갱신 + MANUAL 섹션 업데이트 제안
+/research-state --export  # state_standalone.md 생성 (ChatGPT/Gemini 외부 공유용 self-contained 번들)
+```
+
+state 파일은 HTML 주석 마커로 두 종류 섹션을 분리합니다:
+- **AUTO** — 매 실행 시 재생성: 타임스탬프 헤더, 드리프트 경고 (README와 최근 로그의 mtime 비교), 주요 원본 파일 포인터
+- **MANUAL** — Claude가 최근 로그/논의 기반으로 업데이트를 제안하고 사용자가 섹션별 diff를 승인: 현재 active focus와 decision tree, 모듈별 메트릭, 최근 confirmed decisions, 재탐색 방지용 기각된 경로, Top open questions
+
+사용 타이밍: 실험 결과가 decision tree의 한 분기를 확정했을 때, 외부 LLM에 컨텍스트 공유 직전, 장기 휴식 후 프로젝트 복귀 시. `--export` 모드는 포인터 파일들을 하나의 self-contained 마크다운으로 인라인해 주므로, 상대방이 로컬 파일 접근 불가능한 경우에 유용합니다.
+
 ### 연구 디렉토리 구조
 
 ```
 research/
 ├── CLAUDE.md          ← 운영 규칙
 ├── README.md          ← 연구 현황 요약
+├── state.md           ← 간결한 "현재 상태" 스냅샷 (선택 — /research-state 로 생성)
 ├── logs/YYYY-MM-DD/   ← 일별 인덱스 로그 + 시각화
 ├── summaries/         ← 주간 요약
 ├── topics/<주제>/     ← 주제별 로그, 아키텍처 명세, 토론 아카이브

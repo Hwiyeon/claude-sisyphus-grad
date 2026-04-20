@@ -20,6 +20,7 @@ Research isn't just "run training, check metric, repeat" — the thinking, the d
 
 ## Recent Updates
 
+- **2026-04-20** — Added `/research-state` command for maintaining a `research/state.md` snapshot — a compact "where we are right now" view (~3–5K tokens) sitting between the full `/discuss` cache and the human-readable `README.md`. Uses AUTO/MANUAL section markers (HTML comments) so build-script-generated content (drift warnings, pointers, timestamps) is refreshed automatically while prose sections (current focus + decision tree, recent decisions, rejected paths) are only changed via Claude-proposed edits with user approval. Supports `--export` for generating a self-contained standalone bundle designed to be pasted into external LLMs.
 - **2026-04-14** — `/train` monitoring loop now uses background Bash polling + foreground cache-warming pings, reducing orchestrator token consumption by ~70%. Added terse output rules for between-tool-call text.
 - **2026-04-13** — Added `<!-- PROJECT_INLINE_START --> / <!-- PROJECT_INLINE_END -->` markers in `.claude/commands/*.md` around sections downstream projects commonly customize (`lang` defaults, module tables, `env` defaults, etc.). The markers are invisible HTML comments and do not affect sisyphus usage. Downstream projects can use them as anchors for sync tooling — pulling generic improvements from upstream while preserving local customizations.
 
@@ -144,12 +145,28 @@ Saves the current discussion thread to a structured file under `research/topics/
 /save-discussion title="positional encoding tradeoffs 2026-03-24"
 ```
 
+### `/research-state`
+
+Maintains `research/state.md` — a compact "where we are right now" snapshot (~3–5K tokens) for fast re-entry and external LLM sharing. Complements `README.md` (history-oriented) and the full `/discuss` cache (internal index).
+
+```
+/research-state           # refresh AUTO sections + propose MANUAL section updates
+/research-state --export  # generate state_standalone.md (self-contained bundle for ChatGPT/Gemini)
+```
+
+The state file uses HTML comment markers to separate two kinds of sections:
+- **AUTO** — regenerated on every run: timestamp header, drift warning (mtime comparison across README and recent logs), canonical file pointers
+- **MANUAL** — Claude proposes updates based on recent logs and discussions; user approves each diff per section: current active focus with a decision tree, module metrics, recent confirmed decisions, rejected paths (to avoid re-exploration), top open questions
+
+Typical trigger points: after an experiment result resolves a decision tree branch, before sharing context with an external LLM, or when returning to the project after a break. The `--export` mode inlines pointer files into a single self-contained markdown, useful when you can't rely on the reader having local file access.
+
 ### Research directory structure
 
 ```
 research/
 ├── CLAUDE.md          ← operating rules
 ├── README.md          ← research status summary
+├── state.md           ← compact "current state" snapshot (optional — created by /research-state)
 ├── logs/YYYY-MM-DD/   ← daily index logs + visualizations
 ├── summaries/         ← weekly summaries
 ├── topics/<topic>/    ← per-topic logs, architecture specs, discussion archives

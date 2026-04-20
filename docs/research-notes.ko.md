@@ -14,6 +14,7 @@
 research/
 ├── CLAUDE.md                      ← 운영 규칙 (세션 시작 시 자동 로딩)
 ├── README.md                      ← 연구 현황 요약 (GitHub 표시용)
+├── state.md                       ← 간결한 "현재 상태" 스냅샷 (선택 — /research-state 로 유지)
 ├── logs/
 │   ├── YYYY-MM-DD/
 │   │   ├── log.md                 ← 일별 인덱스 + 비토픽 상세 기록
@@ -44,6 +45,24 @@ research/
 - 최근 진행 상황 (최근 1–2 세션을 2–3 문장으로)
 - 확정된 핵심 결정
 - 다음 세션을 이끄는 열린 질문
+
+### `research/state.md` (선택)
+
+`README.md`와는 다른 시점의 뷰인, 간결한(~3~5K tokens) "지금 상태" 스냅샷. `/research-state` 커맨드로 유지합니다.
+
+세 가지 뷰의 차이:
+- **`/discuss` 캐시** — 전체 연구 인덱스 (~100K+ tokens), Claude 내부용
+- **`README.md`** — history 중심 요약, GitHub에서 사람이 읽는 용도
+- **`state.md`** — action 중심 스냅샷, 휴식 후 빠른 재진입과 외부 LLM(ChatGPT, Gemini) 공유 붙여넣기용
+
+구조는 HTML 주석 마커로 빌드 생성 영역과 산문 영역을 분리합니다:
+
+- `<!-- AUTO:... -->` 섹션은 매 `/research-state` 실행 시 재생성: 타임스탬프 헤더, 드리프트 경고 (README와 최근 로그의 mtime 비교), 주요 원본 파일 포인터
+- `<!-- MANUAL:... -->` 섹션은 Claude가 제안하고 사용자가 승인한 Edit으로만 갱신: 현재 active focus + decision tree, 모듈별 best 메트릭, 최근 confirmed decisions, 재탐색 방지용 기각된 경로, Top open questions
+
+이 분리 덕분에 AUTO가 쉬운 갱신을 맡아 파일이 항상 최신 상태를 유지하면서도, MANUAL 산문이 silent 덮어쓰기로 뉘앙스를 잃지 않습니다.
+
+동반 `--export` 모드는 포인터 파일들을 하나의 self-contained 번들(`state_standalone.md`, 통상 gitignore 대상)로 인라인해 외부 공유용으로 사용합니다.
 
 ### `logs/YYYY-MM-DD/log.md`
 

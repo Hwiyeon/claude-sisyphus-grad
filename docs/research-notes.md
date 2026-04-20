@@ -14,6 +14,7 @@ The research notes system is a structured directory for documenting every experi
 research/
 ├── CLAUDE.md                      ← operating rules (auto-loaded at session start)
 ├── README.md                      ← research status summary (shown on GitHub)
+├── state.md                       ← compact "current state" snapshot (optional — maintained by /research-state)
 ├── logs/
 │   ├── YYYY-MM-DD/
 │   │   ├── log.md                 ← daily index + non-topic details
@@ -44,6 +45,24 @@ Contents:
 - Recent progress (last 1–2 sessions, 2–3 sentences)
 - Key confirmed decisions
 - Open questions driving the next session
+
+### `research/state.md` (optional)
+
+A compact (~3–5K tokens) "where we are right now" snapshot — a different view from `README.md`. Maintained by the `/research-state` command.
+
+Contrast with the other views:
+- **`/discuss` cache** — full research index (~100K+ tokens), Claude-internal only
+- **`README.md`** — history-oriented summary, human-readable on GitHub
+- **`state.md`** — action-oriented snapshot designed for fast re-entry after a break and for pasting into external LLMs (ChatGPT, Gemini)
+
+Structure uses HTML comment markers to separate build-generated content from prose:
+
+- `<!-- AUTO:... -->` sections are regenerated on every `/research-state` run: timestamp header, drift warning (comparing mtimes across README and recent logs), canonical file pointers.
+- `<!-- MANUAL:... -->` sections are only updated via explicit Claude-proposed edits that the user approves: current active focus + decision tree, module best-metrics, recent confirmed decisions, rejected paths (to prevent re-exploration), top open questions.
+
+This separation lets the file stay always-current (AUTO handles easy updates) without losing manually-curated prose nuance (MANUAL is never silently overwritten).
+
+A companion `--export` mode inlines pointer files into a single self-contained bundle (`state_standalone.md`, typically gitignored) for external sharing.
 
 ### `logs/YYYY-MM-DD/log.md`
 
