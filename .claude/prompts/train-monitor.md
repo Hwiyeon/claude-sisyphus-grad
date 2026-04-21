@@ -125,7 +125,7 @@ The subagent executes **all 5 steps per epoch**, one epoch at a time:
 2. `session_continuation.json` — **ATOMIC update** in a SINGLE Edit call: set `status = "pending_resume"`, update `written_at` to current ISO timestamp, AND update `mid_experiment_recovery`. Never update these separately.
 3. inline abort decision (NaN/Inf → auto abort, 5+ consecutive val_loss increase → escalate to quick reviewer within the subagent)
 4. Edit `experiment_{N}_detail.md` (recording format unchanged — see Direct Orchestrator Recording section below)
-5. **GitHub sync** (Step 3 rules)
+5. **GitHub sync** — follow Step 3 batched trigger rules: run `git commit && push` only when this epoch is a trigger (every 5th epoch, new-best, escalation, abort). Otherwise skip — the Edit in step 4 is already on disk and will be included in the next batched sync.
 
 **Subagent return format** (this is ALL that enters the main orchestrator context):
 ```
@@ -135,7 +135,7 @@ E7: abort (NaN) | val_loss=NaN
 ```
 One line per epoch, ≤30 tokens per line. If any epoch returns `abort`, the orchestrator enters the On Abort flow.
 
-**Accumulated epoch rule**: When the background monitor returns "EPOCH N" with N > last_epoch + 1, pass all accumulated epochs to a **single subagent call**. The subagent processes them one at a time in order internally (E4+sync → E5+sync → E6+sync). Never batch multiple epochs into one sync.
+**Accumulated epoch rule**: When the background monitor returns "EPOCH N" with N > last_epoch + 1, pass all accumulated epochs to a **single subagent call**. The subagent processes them one at a time in order internally (E4 record → E5 record → E6 record+sync). Sync follows the batched trigger rules (see orchestrator Step 3) — typically one commit covering multiple epochs per batch, rather than a commit per epoch.
 
 **Epoch detection**: match regex `\[EPOCH_DONE\] (\d+)/(\d+)` in training_log.txt.
 
@@ -284,7 +284,7 @@ The per-epoch subagent appends to `experiment_{N}_detail.md` via the Edit tool. 
 > abort details: [metric snapshot, rationale]
 ```
 
-**GitHub sync immediately after recording** (per Step 3 rules). This sync **must run individually per epoch** — never batch multiple epochs into one sync.
+**GitHub sync follows the batched trigger rules** (per orchestrator Step 3). Edits to `experiment_{N}_detail.md` land on disk immediately (crash-safe), but `git commit && push` only runs on the trigger points defined in Step 3 — every 5 epochs during normal training, or immediately on new-best / escalation / abort / crash. Do not push on every epoch.
 
 ---
 

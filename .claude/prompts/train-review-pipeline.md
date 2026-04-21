@@ -92,15 +92,26 @@ Before round 2 begins, call Reviewer G via Task tool:
 
 ## Round 2
 
-**Step 1 (parallel)**
-Call Reviewers A, B, C simultaneously via Task tool:
+### Parallel Call Requirement (read before every step below)
+
+When a step is marked **(parallel)**, you **MUST** issue all Task tool calls for that step in a **single assistant message** containing multiple `tool_use` blocks. Do NOT call one reviewer, wait for the result, then call the next — that is a sequential call and defeats the purpose.
+
+✅ Correct: one message → `[Task(A), Task(B), Task(C)]` → wait for all three results together
+❌ Wrong: `Task(A)` → result → `Task(B)` → result → `Task(C)` → result (this is sequential, ~3× slower)
+
+This rule applies to Round 2 Step 1 (A,B,C), Round 2 Step 2 (D,E), and Round 3 (A,B,C). Treat each step as a single batch.
+
+---
+
+**Step 1 (parallel — A, B, C in a single message)**
+Issue Task tool calls for Reviewers A, B, C together in one assistant message (3 `tool_use` blocks):
 - Reviewer A: quantitative/statistical perspective (loss curve, overfitting, metric trends, direct citation of results)
 - Reviewer B: algorithm/model architecture perspective (model design, training strategy appropriateness)
 - Reviewer C: data structure/design perspective (data pipeline, preprocessing, data quality)
 - ※ All of A, B, C receive G's `reports/research_brief_{N}.md` as reference. Each decides whether to adopt it.
 
-**Step 2 (parallel)** — after A, B, C results
-Call Reviewers D, E simultaneously via Task tool:
+**Step 2 (parallel — D, E in a single message)** — after A, B, C results
+Issue Task tool calls for Reviewers D and E together in one assistant message (2 `tool_use` blocks):
 - Reviewer D (Feasibility Assessor): evaluate **failure scenarios for each proposal from A, B, C**. Not simple rebuttals but "under what conditions would this proposal fail". Rate risk for each proposal as **[LOW/MEDIUM/HIGH]**, and for HIGH-risk proposals provide **actionable conditions** (under what assumptions it's worth trying). Evaluate G's research brief proposals with the same criteria.
 - Reviewer E (Supplement): fill in missing points from A, B, C opinions, supplement supporting evidence
 
@@ -112,9 +123,9 @@ Call Reviewer F via Task tool:
 
 ---
 
-## Round 3 (parallel) — after F results
+## Round 3 (parallel — A, B, C in a single message) — after F results
 
-Call Reviewers A, B, C simultaneously via Task tool:
+Issue Task tool calls for Reviewers A, B, C together in one assistant message (3 `tool_use` blocks):
 - Review D, E, F opinions and submit updated positions maintaining or revising their original arguments
 - Explain reasons when changing position
 

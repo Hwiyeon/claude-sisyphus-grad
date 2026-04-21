@@ -155,15 +155,20 @@ The rules below are essential to prevent orchestrator context exhaustion. Follow
 
 ## Step 3: GitHub Sync
 
-### Real-Time Sync Rules
+### Batched Sync Rules
 
-Files under `research/` (reports and results) sync with GitHub **whenever updated**:
+Files under `research/` (reports and results) sync with GitHub on the following triggers. **Batch routine per-epoch updates** — each `git push` has network latency, so avoid syncing every epoch.
 
 - **Sync trigger points**:
-  - Whenever orchestrator completes epoch recording in `experiment_{N}_detail.md`
-  - Whenever a new file is created or updated under `results/`
-  - When each round of Step 2 review discussion recording is complete
-  - On abort
+  - **Every 5 epochs** during training (the per-epoch subagent accumulates Edits to `experiment_{N}_detail.md` and only runs the sync commit on epoch numbers where `epoch % 5 == 0`). Pending edits from intermediate epochs are already on disk, so they will be included in the next sync.
+  - **Immediately** on any of the following events, regardless of epoch modulo:
+    - New best metric detected (record-breaking epoch)
+    - Quick-reviewer escalation
+    - Auto-abort (NaN/Inf/divergence) or crash
+    - Training normal completion (post-training result collection, sync before entering Step 2)
+  - Whenever a new file is created or updated under `results/` (e.g., end-of-experiment `experiment_{N}.json`)
+  - When each full round of Step 2 review discussion recording is complete (not per-reviewer — per-round)
+  - On abort (sync immediately including any pending epochs)
   - When final wrap-up is complete
 
 - **Sync command** (see `RESEARCH_SYNC_CMD` in CLAUDE.md. Use default below if not set):
@@ -175,7 +180,7 @@ Files under `research/` (reports and results) sync with GitHub **whenever update
   ```
   ※ Check whether `research/` is a separate repo during Step 0 initialization (`git -C research remote -v`), and retain that information throughout the session
 
-※ Do not wait until each full experiment ends — sync immediately whenever files are updated
+※ The goal is to keep all on-disk state crash-safe (local Edit is always immediate) while only paying network cost at meaningful checkpoints.
 
 ---
 

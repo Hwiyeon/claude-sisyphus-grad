@@ -13,7 +13,7 @@ unset CLAUDECODE 2>/dev/null || true
 
 ARGS="$1"
 MAX_RETRIES=3
-POLL_INTERVAL=10  # seconds between status checks
+POLL_INTERVAL=2   # seconds between iterations (claude -p has already exited; just a brief pause before respawn)
 STALE_TIMEOUT=600 # 10 minutes without written_at change → failure
 
 # --- Parse experiment_title and date from args ---
